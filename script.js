@@ -4,14 +4,21 @@ baseURL = 'https://api.openweathermap.org/data/2.5/weather';
 function addListeners() {
 	document.querySelector('.add-new-city').addEventListener('submit', (event) => {
 		event.preventDefault();
-		cityInputValue = document.querySelector('.add-new-city-input').value;
+		//cityInputValue = document.querySelector('.add-new-city-input').value;
+		cityInputValue = event.currentTarget.firstElementChild.value;
+		cityInputValue = ucFirst(cityInputValue);
+
 		city = addCity(cityInputValue);
+		cities = localStorage.getItem('favourites') ? JSON.parse(localStorage.getItem('favourites')) : [];
+
 		fetch(`${baseURL}?q=${cityInputValue}&appid=${apiKey}`).then(response => response.json()).then(data => {
-			if (data.name !== undefined) {
-				cities = localStorage.getItem('favourites') ? JSON.parse(localStorage.getItem('favourites')) : [];
+			if (data.name !== undefined && !cities.includes(data.name)) {
 				cities.push(data.name);
 				localStorage.setItem('favourites', JSON.stringify(cities));
 				addCityInfo(data);
+			} else if (cities.includes(data.name)){
+				alert('Город уже в избранном');
+				city.remove();
 			} else {
 				alert('Город не найден');
 				city.remove();
@@ -23,20 +30,14 @@ function addListeners() {
 		document.querySelector('.add-new-city-input').value = "";
 	});
 	document.querySelector('.update-btn-text').addEventListener('click', (event) => {
-		updateGeolocation();
+		getMainCity();
 	});
 	document.querySelector('.update-btn').addEventListener('click', (event) => {
-		updateGeolocation();
+		getMainCity();
 	});
 }
 
 function getMainCity() {
-	latitude = localStorage.getItem('lat');
-	longitude = localStorage.getItem('lon');
-	(latitude == null || longitude == null) ? updateGeolocation() : addMainCity(latitude, longitude)
-}
-
-function updateGeolocation() {
 	geolocation = navigator.geolocation;
 	geolocation.getCurrentPosition( position => {
 		latitude = position.coords.latitude;
@@ -49,8 +50,6 @@ function updateGeolocation() {
 }
 
 function addMainCity(latitude, longitude) {
-	localStorage.setItem('lat', latitude);
-	localStorage.setItem('lon', longitude);
 	fetch(`${baseURL}?lat=${latitude}&lon=${longitude}&appid=${apiKey}`).then(response => response.json()).then(data => {
 		temp = Math.round(data.main.temp - 273) + '°C';
 		document.querySelector('main > section').innerHTML = '';
@@ -64,9 +63,8 @@ function addMainCity(latitude, longitude) {
 }
 
 function addFavouriteCities() {
-	if (localStorage.getItem('favourites') == null && localStorage.getItem('default') == null) {
+	if (localStorage.getItem('favourites') == null) {
 		localStorage.setItem('favourites', JSON.stringify(['Moscow', 'Helsinki', 'London', 'Paris', 'Berlin', 'Dublin']));
-		localStorage.setItem('default', 'true');
 	}
 
 	favouriteCities = localStorage.getItem('favourites') ? JSON.parse(localStorage.getItem('favourites')) : [];
@@ -78,12 +76,11 @@ function addFavouriteCities() {
 	for (favouriteCity of favoritesCitiesSet) {
 		fetch(`${baseURL}?q=${favouriteCity}&appid=${apiKey}`).then(resp => resp.json()).then(data => {
 			addCityInfo(data);
-		})
-			.catch(err => {
-				document.querySelectorAll(`.${favouriteCity} > .info`).forEach( item => {
-					item.innerHTML = `<p class="wait-city">Данные не получены</p>`;
-				});
+		}).catch(err => {
+			document.querySelectorAll(`.${favouriteCity} > .info`).forEach( item => {
+				item.innerHTML = `<p class="wait-city">Данные не получены</p>`;
 			});
+		});
 	}
 }
 
@@ -92,21 +89,18 @@ function addCity(cityName) {
 	template.content.firstElementChild.setAttribute('class', cityName);
 	template.content.querySelector('h3').textContent = cityName;
 	elem = template.content.cloneNode(true).firstElementChild;
-	city = document.querySelector('main').appendChild(elem);
-	btn = city.firstElementChild.lastElementChild;
-	btn.addEventListener( 'click' , (event) => {
-		city = event.currentTarget.parentNode.parentNode;
-		cityName = city.getAttribute('class');
-		i = 0;
-		prevSibling = city;
-		while (prevSibling.previousElementSibling.getAttribute('class') !== 'add-new-city') {
-			prevSibling = prevSibling.previousElementSibling;
-			i++;
-		}
+	cityHTML = document.querySelector('main').appendChild(elem);
+
+	btn_remove = cityHTML.firstElementChild.lastElementChild;
+
+	btn_remove.addEventListener( 'click' , (event) => {
+		cityHTML = event.currentTarget.parentNode.parentNode;
+		cityName = cityHTML.getAttribute('class');
 		cities = localStorage.getItem('favourites') ? JSON.parse(localStorage.getItem('favourites')) : [];
+		i = cities.indexOf(cityName);
 		cities.splice(i, 1);
 		localStorage.setItem('favourites', JSON.stringify(cities));
-		city.remove();
+		cityHTML.remove();
 	});
 	return elem;
 }
@@ -173,6 +167,11 @@ function windDirection(deg) {
 	else return 'North-West'
 }
 
+function ucFirst(str) {
+	if (!str) return str;
+	str = (str[0].toUpperCase() + str.slice(1).toLocaleLowerCase()).trim();
+	return str;
+}
 
 addListeners();
 getMainCity();
